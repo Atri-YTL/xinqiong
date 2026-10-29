@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>记忆库 · Atri控制台</title>
+    <script src="/api/plugin/page/bridge-sdk.js"></script>
+    <script src="nav.js"></script>
+    <style>
+      :root { --line:#232a35; --text:#d7dee9; --dim:#7d8899; --accent:#7dd3fc;
+              --ok:#4ade80; --warn:#f5c26b; --bad:#ff7b72;
+              --mono: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+      * { box-sizing: border-box; }
+      html, body { height:100%; margin:0; }
+      body { color:var(--text); font:13px/1.55 var(--mono); display:flex; flex-direction:column; overflow:hidden; }
+      html, body { background:#0b0e12; }
+      header { display:flex; align-items:center; gap:10px; padding:10px 14px;
+               background:rgba(15,19,25,.62); border-bottom:1px solid var(--line);
+               flex:0 0 auto; -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px);
+               position:relative; z-index:1; }
+      header h1 { font-size:13px; margin:0; color:var(--accent); font-weight:600; }
+      .spacer { flex:1 1 auto; }
+      button { font:inherit; font-size:12px; color:var(--text); background:rgba(27,33,43,.78);
+               border:1px solid var(--line); border-radius:6px; padding:5px 11px; cursor:pointer; }
+      button:hover { border-color:#3a4657; }
+      button.primary { border-color:#2a5a5e; color:#a5f3fc; background:rgba(16,34,39,.8); }
+      button.danger { border-color:#5a2a28; color:#ffb4ae; background:rgba(36,22,21,.8); }
+      button.small { padding:3px 8px; font-size:11px; }
+      .tabs { display:flex; gap:4px; overflow-x:auto; max-width:58vw; }
+      .tabs button { background:transparent; border:1px solid transparent; border-radius:999px;
+                     padding:4px 10px; color:var(--dim); white-space:nowrap; }
+      .tabs button.active { color:var(--accent); border-color:#24505f; background:rgba(16,34,39,.72); }
+      main { flex:1 1 auto; min-height:0; display:flex; gap:12px; padding:14px; overflow:hidden;
+             background: radial-gradient(125% 95% at 50% 0%, rgba(9,13,19,.30) 0%, rgba(8,10,14,.68) 52%, rgba(7,9,12,.86) 100%),
+                         #0b0e12 url("./bg.jpg") center / cover no-repeat; }
+      aside { flex:0 0 220px; overflow:auto; background:rgba(19,24,31,.62);
+              border:1px solid var(--line); border-radius:10px; padding:8px; }
+      aside button { display:block; width:100%; text-align:left; margin-bottom:4px;
+                     background:transparent; border:1px solid transparent; }
+      aside button.active { border-color:#24505f; background:rgba(16,34,39,.55); color:var(--accent); }
+      aside .cnt { color:var(--dim); font-size:11px; }
+      section.editor { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:8px; }
+      #list { flex:1 1 auto; overflow:auto; display:flex; flex-direction:column; gap:8px; padding-right:4px; }
+      .item { background:rgba(19,24,31,.62); border:1px solid var(--line); border-radius:10px; padding:10px 12px; }
+      .item .top { display:flex; gap:8px; align-items:center; margin-bottom:6px; }
+      .item input.title { flex:1 1 auto; background:rgba(10,14,20,.7); border:1px solid var(--line);
+                          border-radius:6px; color:var(--text); padding:4px 8px; font:inherit; font-size:12px; }
+      .item textarea { width:100%; min-height:64px; resize:vertical; background:rgba(10,14,20,.7);
+                       border:1px solid var(--line); border-radius:6px; color:var(--text);
+                       padding:6px 8px; font:inherit; font-size:12px; line-height:1.55; }
+      .item .meta { color:var(--dim); font-size:11px; margin-top:4px; }
+      #memSearch { background:rgba(10,14,20,.7); border:1px solid var(--line); border-radius:6px;
+                    color:var(--text); padding:5px 9px; font:inherit; font-size:12px; width:170px; }
+      #status { font-size:12px; }
+      #status.ok { color:var(--ok); } #status.bad { color:var(--bad); }
+      #banner { display:none; margin:0 0 10px; padding:9px 12px; border:1px solid #5a3d22;
+                background:#251a10; color:var(--warn); border-radius:8px; font-size:12px; }
+      #banner.show { display:block; }
+    
+      /* ── 窄屏（手机）适配 ── */
+      @media (max-width: 720px) {
+        header { flex-wrap: wrap; gap: 6px; padding: 8px 10px; }
+        header h1 { font-size: 12px; flex: 0 0 auto; }
+        .tabs {
+          order: 9; width: 100%; max-width: 100%;
+          -webkit-overflow-scrolling: touch;
+        }
+        .tabs button { padding: 6px 12px; font-size: 12px; }
+        main { flex-direction: column; padding: 10px; gap: 10px; }
+        aside { flex: 0 0 auto; max-height: 26vh; width: 100%; }
+        .grid { grid-template-columns: 1fr; }
+        .row { flex-wrap: wrap; }
+        .row label { flex: 1 1 100%; min-width: 0; }
+        .row input[type="number"] { width: 110px; }
+        .row input[type="text"] { flex: 1 1 100%; }
+        .card, .item, .stat { padding: 10px 11px; }
+        textarea { min-height: 220px; }
+        .pane { flex: 1 1 auto !important; }
+        .pane.p1, .pane.p2 { flex: 0 0 auto !important; max-height: 20vh; }
+        pre.check { max-height: 42vh; }
+        #cards { gap: 8px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>记忆库</h1>
+      <nav class="tabs" id="tabs"></nav>
+      <span class="spacer"></span>
+      <span id="status"></span>
+      <input type="search" id="memSearch" placeholder="搜索标题/正文" />
+      <button id="newCat">新建分类</button>
+      <button id="add">新增一条</button>
+      <button class="primary" id="save">保存</button>
+    </header>
+
+    <main>
+      <aside id="files"></aside>
+      <section class="editor">
+        <div id="banner"></div>
+        <div id="list"></div>
+      </section>
+    </main>
+
+    <script>
+        function selfNavigate(page){ if(window.__NAV__ && window.__NAV__[page]){ location.href = window.__NAV__[page]; } }
+
+      (function () {
+        "use strict";
+        var PAGES = [
+          ["status","状态"],["logs","日志"],["ops","运维"],["groups","群聊"],
+          ["memory","记忆"],["slang","梗库"],["content","内容"],["maint","维护"],
+          ["period","时段"],["growth","成长"],["persona","角色卡"],["star","心穹中枢"]
+        ];
+        var CURRENT = "memory", PLUGIN = "astrbot_plugin_console", bridge = null;
+        var state = { files: [], current: null, dirty: false, query: "" };
+        var bannerEl = document.getElementById("banner");
+
+        function banner(t){ bannerEl.textContent=t; bannerEl.classList.add("show"); }
+        function clearBanner(){ bannerEl.classList.remove("show"); }
+        function setStatus(t, tone){ var e=document.getElementById("status"); e.textContent=t||""; e.className=tone||""; }
+
+        function renderTabs(){
+          var nav=document.getElementById("tabs");
+          PAGES.forEach(function(pair){
+            var b=document.createElement("button"); b.type="button"; b.textContent=pair[1];
+            if(pair[0]===CURRENT) b.classList.add("active");
+            b.addEventListener("click", function(){
+              try { selfNavigate(pair[0]); }
+              catch(e){ banner("宿主不允许切换页面："+e); }
+            });
+            nav.appendChild(b);
+          });
+        }
+
+        function currentFile(){ return state.files.find(function(f){ return f.name===state.current; }) || null; }
+
+        function renderFiles(){
+          var box=document.getElementById("files"); box.replaceChildren();
+          state.files.forEach(function(f){
+            var b=document.createElement("button"); b.type="button";
+            if(f.name===state.current) b.classList.add("active");
+            b.textContent=f.title || f.name;
+            var c=document.createElement("span"); c.className="cnt"; c.textContent=" · "+f.items.length+" 条";
+            b.appendChild(c);
+            b.addEventListener("click", function(){ state.current=f.name; state.dirty=false; renderFiles(); renderItems(); });
+            box.appendChild(b);
+          });
+          if(!state.files.length){
+            var p=document.createElement("div"); p.textContent="没有记忆文件"; box.appendChild(p);
+          }
+        }
+
+        function renderItems(){
+          var box=document.getElementById("list"); box.replaceChildren();
+          var f=currentFile();
+          if(!f){ return; }
+          var q = state.query;
+          f.items.forEach(function(item, idx){
+            if (q && String(item.title||"").toLowerCase().indexOf(q) === -1
+                  && String(item.text||"").toLowerCase().indexOf(q) === -1) return;
+            var card=document.createElement("div"); card.className="item";
+
+            var top=document.createElement("div"); top.className="top";
+            var title=document.createElement("input"); title.className="title";
+            title.value=item.title || "";
+            title.placeholder="标题";
+            title.addEventListener("input", function(){ item.title=title.value; state.dirty=true; });
+            var del=document.createElement("button"); del.className="danger small"; del.textContent="删除";
+            del.addEventListener("click", function(){
+              if(!confirm("删除这条记忆？保存后生效（写前会自动快照）")) return;
+              f.items.splice(idx,1); state.dirty=true; renderFiles(); renderItems();
+            });
+            top.appendChild(title); top.appendChild(del); card.appendChild(top);
+
+            var text=document.createElement("textarea");
+            text.value=item.text || "";
+            text.addEventListener("input", function(){ item.text=text.value; state.dirty=true; });
+            card.appendChild(text);
+
+            var meta=document.createElement("div"); meta.className="meta";
+            meta.textContent=[item.scope, item.time, item.id].filter(Boolean).join(" · ");
+            card.appendChild(meta);
+            box.appendChild(card);
+          });
+          if(!f.items.length){
+            var empty=document.createElement("div"); empty.className="meta";
+            empty.textContent="这个文件里还没有条目"; box.appendChild(empty);
+          }
+        }
+
+        async function load(){
+          if(!bridge) return;
+          setStatus("读取中…");
+          try{
+            var d=await bridge.apiGet("memory");
+            state.files=(d && d.files) || [];
+            if(!state.current || !currentFile()) state.current = state.files.length ? state.files[0].name : null;
+            renderFiles(); renderItems(); clearBanner(); setStatus("");
+          }catch(error){
+            banner("读记忆失败："+(error&&error.message?error.message:error)); setStatus("");
+          }
+        }
+
+        async function save(){
+          if(!bridge) return;
+          var f=currentFile();
+          if(!f){ setStatus("没有选中文件","bad"); return; }
+          var btn=document.getElementById("save"); btn.disabled=true; setStatus("保存中…");
+          try{
+            var r=await bridge.apiPost("memory/save", { name:f.name, items:f.items });
+            setStatus("已保存 "+(r.count||f.items.length)+" 条（写前已快照）","ok");
+            clearBanner(); state.dirty=false; await load();
+          }catch(error){
+            setStatus("保存失败","bad");
+            banner("保存失败："+(error&&error.message?error.message:error));
+          }finally{ btn.disabled=false; }
+        }
+
+        function boot(attempt){
+          bridge=window.AstrBotPluginView||window.AstrBotPluginPage;
+          if(!bridge){
+            if(attempt<30){ setTimeout(function(){boot(attempt+1);},100); return; }
+            banner("没有检测到 AstrBot 页面桥 —— 请从 WebUI → 扩展功能 → Atri控制台 → 记忆 进入。");
+            return;
+          }
+          renderTabs();
+          document.getElementById("save").addEventListener("click", save);
+          document.getElementById("memSearch").addEventListener("input", function (e) {
+            state.query = String(e.target.value || "").trim().toLowerCase();
+            renderItems();
+          });
+          document.getElementById("newCat").addEventListener("click", async function () {
+            var name = prompt("新分类名（例如 2026-10-28 或 群友）");
+            if (!name) return;
+            try {
+              await bridge.apiPost("memory/new", { name: name });
+              setStatus("已新建分类：" + name, "ok");
+              await load();
+            } catch (e) {
+              setStatus("新建失败", "bad");
+              banner("新建失败：" + (e && e.message ? e.message : e));
+            }
+          });
+          document.getElementById("add").addEventListener("click", function(){
+            var f=currentFile(); if(!f){ return; }
+            f.items.unshift({ id: f.name+"-"+Date.now(), title:"新条目", text:"", scope:"", time:"" });
+            state.dirty=true; renderFiles(); renderItems();
+            document.getElementById("list").scrollTop=0;
+          });
+          var start=function(){ load(); };
+          if(typeof bridge.ready==="function"){
+            Promise.race([bridge.ready(), new Promise(function(r){setTimeout(r,1500);})]).finally(start);
+          } else { start(); }
+        }
+
+        if(document.readyState==="loading"){
+          document.addEventListener("DOMContentLoaded", function(){boot(0);});
+        } else { boot(0); }
+      })();
+    </script>
+  </body>
+</html>

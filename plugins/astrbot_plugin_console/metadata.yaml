@@ -1,0 +1,7 @@
+name: astrbot_plugin_console
+display_name: Atri控制台
+desc: 把 Tk 控制台的 11 个页面搬进 WebUI：日志/状态/运维/群聊/记忆/梗库/内容/维护/时段/成长/角色卡。
+help: WebUI → 插件 → Atri控制台 → 页面 logs
+version: v0.3.0
+author: Atri
+astrbot_version: ">=4.20.0"

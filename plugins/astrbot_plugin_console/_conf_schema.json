@@ -1,0 +1,30 @@
+{
+  "log_file": {
+    "description": "日志文件",
+    "type": "string",
+    "default": "",
+    "hint": "留空 = <astrbot>/run.log（启动脚本把 stdout 重定向到这里）。相对路径以 astrbot 目录为基准。"
+  },
+  "default_lines": {
+    "description": "默认显示行数",
+    "type": "int",
+    "default": 200,
+    "slider": {
+      "min": 20,
+      "max": 2000,
+      "step": 20
+    }
+  },
+  "max_bytes": {
+    "description": "每次最多读取的尾部字节数",
+    "type": "int",
+    "default": 524288,
+    "hint": "防止日志很大时把内存吃满；524288 = 512 KB"
+  },
+  "enable_restart": {
+    "description": "允许网页上点「重启机器人」",
+    "type": "bool",
+    "default": true,
+    "hint": "关掉后只能从 Tk 控制台或命令行重启。注意：WebUI 自己会随机器人一起重启，页面会短暂失联。"
+  }
+}

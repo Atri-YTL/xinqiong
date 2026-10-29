@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>运维 · Atri控制台</title>
+    <script src="/api/plugin/page/bridge-sdk.js"></script>
+    <script src="nav.js"></script>
+    <style>
+      :root {
+        --bg: #0d1014;
+        --panel: #14181f;
+        --card: #171c25;
+        --line: #232a35;
+        --text: #d7dee9;
+        --dim: #7d8899;
+        --accent: #7dd3fc;
+        --ok: #4ade80;
+        --warn: #f5c26b;
+        --bad: #ff7b72;
+        --mono: ui-monospace, "Cascadia Mono", Consolas, "Sarasa Mono SC", monospace;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        background: var(--bg); color: var(--text);
+        font: 13px/1.55 var(--mono);
+        display: flex; flex-direction: column; overflow: hidden;
+      }
+      header {
+        display: flex; align-items: center; gap: 10px;
+        padding: 10px 14px; background: var(--panel);
+        border-bottom: 1px solid var(--line); flex: 0 0 auto;
+      }
+      header h1 { font-size: 13px; margin: 0; color: var(--accent); font-weight: 600; }
+      .spacer { flex: 1 1 auto; }
+      .dim { color: var(--dim); font-size: 11.5px; }
+      main { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 14px; }
+      .card {
+        background: var(--card); border: 1px solid var(--line);
+        border-radius: 10px; padding: 13px 14px; margin-bottom: 12px;
+      }
+      .card h2 { font-size: 13px; margin: 0 0 4px; color: var(--text); font-weight: 600; }
+      .card p { margin: 0 0 10px; color: var(--dim); font-size: 12px; line-height: 1.6; }
+      .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+      button {
+        font: inherit; font-size: 12px; color: var(--text);
+        background: #1b212b; border: 1px solid var(--line);
+        border-radius: 6px; padding: 6px 12px; cursor: pointer;
+      }
+      button:hover { border-color: #3a4657; background: #212936; }
+      button:disabled { opacity: 0.5; cursor: default; }
+      button.danger { border-color: #5a2a28; color: #ffb4ae; background: #241615; }
+      button.danger:hover { border-color: var(--bad); }
+      button.primary { border-color: #2a5a5e; color: #a5f3fc; background: #102227; }
+      #confirmBox {
+        display: none; margin-top: 10px; padding: 10px 12px;
+        border: 1px solid #5a2a28; background: #1d1211; border-radius: 8px;
+      }
+      #confirmBox.show { display: block; }
+      #confirmBox p { color: #ffb4ae; margin: 0 0 10px; }
+      pre.check {
+        margin: 10px 0 0; padding: 12px 14px;
+        background: #0a0d11; border: 1px solid var(--line); border-radius: 10px;
+        font-size: 12.5px; line-height: 1.6; white-space: pre-wrap;
+        max-height: 320px; overflow: auto;
+      }
+      #banner {
+        display: none; margin-bottom: 12px; padding: 9px 12px;
+        border: 1px solid #5a3d22; background: #251a10; color: var(--warn);
+        border-radius: 8px; font-size: 12px;
+      }
+      #banner.show { display: block; }
+      .status { font-size: 12.5px; }
+      .status.ok { color: var(--ok); }
+      .status.warn { color: var(--warn); }
+      .status.bad { color: var(--bad); }
+      .tabs { display: flex; gap: 4px; overflow-x: auto; max-width: 62vw; }
+      .tabs button { white-space: nowrap; }
+      .tabs button {
+        font: inherit; font-size: 12px; color: var(--dim);
+        background: transparent; border: 1px solid transparent;
+        border-radius: 999px; padding: 4px 11px; cursor: pointer;
+      }
+      .tabs button:hover { color: var(--text); border-color: var(--line); }
+      .tabs button.active { color: var(--accent); border-color: #24505f; background: #102227; }
+
+      /* 背景：放在 main 上（放 body/html 上，在宿主 iframe 里会被画成两块亮度断层） */
+      html, body { background: #0b0e12; }
+      main {
+        background:
+          radial-gradient(125% 95% at 50% 0%,
+            rgba(9,13,19,.30) 0%,
+            rgba(8,10,14,.68) 52%,
+            rgba(7,9,12,.86) 100%),
+          #0b0e12 url("./bg.jpg") center / cover no-repeat;
+      }
+      header, main, footer { position: relative; z-index: 1; }
+      header, footer {
+        background: rgba(15,19,25,.62) !important;
+        -webkit-backdrop-filter: blur(16px) saturate(1.2);
+        backdrop-filter: blur(16px) saturate(1.2);
+      }
+      .card, table, pre.check {
+        background: rgba(19,24,31,.66) !important;
+        -webkit-backdrop-filter: blur(12px) saturate(1.15);
+        backdrop-filter: blur(12px) saturate(1.15);
+      }
+      #log { background: rgba(11,15,20,.60) !important; }
+      button, select, input[type="search"] {
+        background: rgba(27,33,43,.70) !important;
+        -webkit-backdrop-filter: blur(8px);
+        backdrop-filter: blur(8px);
+      }
+      .tabs button { background: transparent !important; backdrop-filter: none; -webkit-backdrop-filter: none; }
+      .tabs button.active { background: rgba(16,34,39,.72) !important; }
+    
+      /* ── 窄屏（手机）适配 ── */
+      @media (max-width: 720px) {
+        header { flex-wrap: wrap; gap: 6px; padding: 8px 10px; }
+        header h1 { font-size: 12px; flex: 0 0 auto; }
+        .tabs {
+          order: 9; width: 100%; max-width: 100%;
+          -webkit-overflow-scrolling: touch;
+        }
+        .tabs button { padding: 6px 12px; font-size: 12px; }
+        main { flex-direction: column; padding: 10px; gap: 10px; }
+        aside { flex: 0 0 auto; max-height: 26vh; width: 100%; }
+        .grid { grid-template-columns: 1fr; }
+        .row { flex-wrap: wrap; }
+        .row label { flex: 1 1 100%; min-width: 0; }
+        .row input[type="number"] { width: 110px; }
+        .row input[type="text"] { flex: 1 1 100%; }
+        .card, .item, .stat { padding: 10px 11px; }
+        textarea { min-height: 220px; }
+        .pane { flex: 1 1 auto !important; }
+        .pane.p1, .pane.p2 { flex: 0 0 auto !important; max-height: 20vh; }
+        pre.check { max-height: 42vh; }
+        #cards { gap: 8px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>运维</h1>
+      <nav class="tabs" aria-label="控制台页面">
+        <button type="button" data-page="status">状态</button>
+        <button type="button" data-page="logs">日志</button>
+        <button type="button" data-page="ops">运维</button>
+        <button type="button" data-page="groups">群聊</button>
+        <button type="button" data-page="memory">记忆</button>
+        <button type="button" data-page="slang">梗库</button>
+        <button type="button" data-page="content">内容</button>
+        <button type="button" data-page="maint">维护</button>
+        <button type="button" data-page="period">时段</button>
+        <button type="button" data-page="growth">成长</button>
+        <button type="button" data-page="persona">角色卡</button>
+        <button type="button" data-page="star">心穹中枢</button>
+      </nav>
+      <span class="dim" id="stamp">—</span>
+      <span class="spacer"></span>
+      <button id="health">一键体检</button>
+    </header>
+
+    <main>
+      <div id="banner"></div>
+
+      <div class="card">
+        <h2>重启机器人</h2>
+        <p>
+          只重启 AstrBot（不动 NapCat，QQ 不会掉线重登）。约 20–40 秒回来。<br />
+          <b>注意：这个页面本身就跑在机器人进程里，重启期间它会短暂失联</b> —— 下面的状态会自己等它回来。
+          如果 2 分钟后仍然没回来，用 Tk 控制台或 <code>scripts\qqbot-start.cmd</code> 救。
+        </p>
+        <div class="row">
+          <button class="danger" id="restart">重启机器人</button>
+          <span class="status" id="restartState"></span>
+        </div>
+        <div id="confirmBox">
+          <p>确认要重启？群里会中断十几秒，重启期间 WebUI 打不开。</p>
+          <div class="row">
+            <button class="danger" id="confirmRestart">确认重启</button>
+            <button id="cancelRestart">取消</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>体检</h2>
+        <p>端口 / 账号 / 在线 / NapCat 版本 / WebUI / 进程 / 记忆库 / 今日用量 —— 全部只读，不会改任何东西。</p>
+        <div class="row">
+          <button id="runHealth" class="primary">开始体检</button>
+          <span class="dim" id="healthHint"></span>
+        </div>
+        <pre class="check" id="healthOut" style="display: none"></pre>
+      </div>
+
+      <div class="card">
+        <h2>这里是网页，不是急救箱</h2>
+        <p>
+          机器人彻底起不来时，这个页面也打不开。那种时候请用
+          <code>scripts\atri-console\start-gui.cmd</code>（Tk）或
+          <code>scripts\qqbot-start.cmd</code>（命令行）—— WebUI 是日常面板，Tk 是急救箱。
+        </p>
+      </div>
+    </main>
+
+    <script>
+        function selfNavigate(page){ if(window.__NAV__ && window.__NAV__[page]){ location.href = window.__NAV__[page]; } }
+
+      (function () {
+        "use strict";
+
+        var PLUGIN = "astrbot_plugin_console";
+        var CURRENT = "ops";
+        (function bindTabs() {
+          var buttons = document.querySelectorAll(".tabs button");
+          Array.prototype.forEach.call(buttons, function (btn) {
+            var page = btn.getAttribute("data-page");
+            if (page === CURRENT) btn.classList.add("active");
+            btn.addEventListener("click", function () {
+              try {
+                selfNavigate(page);
+              } catch (error) {
+                var el = document.getElementById("banner");
+                if (el) { el.textContent = "宿主不允许切换页面：" + error; el.classList.add("show"); }
+              }
+            });
+          });
+        })();
+
+        var bridge = null;
+        var state = { restarting: false, pollTimer: null };
+        var bannerEl = document.getElementById("banner");
+
+        function banner(text) {
+          bannerEl.textContent = text;
+          bannerEl.classList.add("show");
+        }
+        function clearBanner() { bannerEl.classList.remove("show"); }
+
+        async function post(endpoint, body) {
+          if (!bridge) throw new Error("没有页面桥");
+          return bridge.apiPost(endpoint, body || {});
+        }
+
+        async function doRestart() {
+          document.getElementById("confirmBox").classList.remove("show");
+          var btn = document.getElementById("restart");
+          btn.disabled = true;
+          state.restarting = true;
+          setState("正在下发重启…", "warn");
+          try {
+            var r = await post("ops/restart", { confirm: "restart" });
+            var msg = (r && r.message) || "已排队重启";
+            setState(msg + "（已等待 0s）", "warn");
+            clearBanner();
+            waitUntilBack(Date.now());
+          } catch (error) {
+            btn.disabled = false;
+            state.restarting = false;
+            setState("下发失败", "bad");
+            banner("重启失败：" + (error && error.message ? error.message : error));
+          }
+        }
+
+        function setState(text, tone) {
+          var el = document.getElementById("restartState");
+          el.textContent = text;
+          el.className = "status " + (tone || "");
+        }
+
+        function waitUntilBack(startedAt) {
+          if (state.pollTimer) clearTimeout(state.pollTimer);
+          state.pollTimer = setTimeout(async function () {
+            var elapsed = Math.round((Date.now() - startedAt) / 1000);
+            try {
+              var d = await bridge.apiGet("status");
+              if (d && d.status !== "error") {
+                setState("已恢复（耗时 " + elapsed + "s）· PID " + (d.pid_astrbot || "—"), "ok");
+                state.restarting = false;
+                document.getElementById("restart").disabled = false;
+                document.getElementById("stamp").textContent = "重新连通于 " + new Date().toLocaleTimeString("zh-CN");
+                return;
+              }
+            } catch (error) { /* 服务器还没起来，正常 */ }
+            if (elapsed > 180) {
+              setState("3 分钟仍未回来 —— 去用 Tk / qqbot-start.cmd", "bad");
+              document.getElementById("restart").disabled = false;
+              state.restarting = false;
+              return;
+            }
+            setState("重启中… 已等待 " + elapsed + "s", "warn");
+            waitUntilBack(startedAt);
+          }, 3000);
+        }
+
+        async function runHealth() {
+          var btn = document.getElementById("runHealth");
+          var out = document.getElementById("healthOut");
+          btn.disabled = true;
+          out.style.display = "";
+          out.textContent = "正在跑体检…";
+          document.getElementById("healthHint").textContent = "";
+          try {
+            var d = await bridge.apiGet("health");
+            out.textContent = ((d && d.lines) || []).join("\n");
+            document.getElementById("stamp").textContent = "体检于 " + new Date().toLocaleTimeString("zh-CN");
+          } catch (error) {
+            out.textContent = "体检失败：" + (error && error.message ? error.message : error);
+          } finally {
+            btn.disabled = false;
+          }
+        }
+
+        function boot(attempt) {
+          bridge = window.AstrBotPluginView || window.AstrBotPluginPage;
+          if (!bridge) {
+            if (attempt < 30) { setTimeout(function () { boot(attempt + 1); }, 100); return; }
+            banner("没有检测到 AstrBot 页面桥 —— 请从 WebUI → 扩展功能 → Atri控制台 → 运维 进入。");
+            return;
+          }
+          var start = function () {
+            document.getElementById("stamp").textContent = "就绪 · " + new Date().toLocaleTimeString("zh-CN");
+            document.getElementById("restart").addEventListener("click", function () {
+              document.getElementById("confirmBox").classList.add("show");
+            });
+            document.getElementById("cancelRestart").addEventListener("click", function () {
+              document.getElementById("confirmBox").classList.remove("show");
+            });
+            document.getElementById("confirmRestart").addEventListener("click", doRestart);
+            document.getElementById("runHealth").addEventListener("click", runHealth);
+            document.getElementById("health").addEventListener("click", runHealth);
+          };
+          if (typeof bridge.ready === "function") {
+            Promise.race([bridge.ready(), new Promise(function (r) { setTimeout(r, 1500); })]).finally(start);
+          } else { start(); }
+        }
+
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", function () { boot(0); });
+        } else { boot(0); }
+      })();
+    </script>
+  </body>
+</html>

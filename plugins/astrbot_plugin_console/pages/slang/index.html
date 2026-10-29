@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>梗库 · Atri控制台</title>
+    <script src="/api/plugin/page/bridge-sdk.js"></script>
+    <script src="nav.js"></script>
+    <style>
+      :root { --line:#232a35; --text:#d7dee9; --dim:#7d8899; --accent:#7dd3fc;
+              --ok:#4ade80; --warn:#f5c26b; --bad:#ff7b72;
+              --mono: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+      * { box-sizing:border-box; }
+      html, body { height:100%; margin:0; }
+      body { color:var(--text); font:13px/1.55 var(--mono); display:flex; flex-direction:column; overflow:hidden; background:#0b0e12; }
+      header { display:flex; align-items:center; gap:10px; padding:10px 14px;
+               background:rgba(15,19,25,.62); border-bottom:1px solid var(--line); flex:0 0 auto;
+               -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px); position:relative; z-index:1; }
+      header h1 { font-size:13px; margin:0; color:var(--accent); font-weight:600; }
+      .spacer { flex:1 1 auto; }
+      button { font:inherit; font-size:12px; color:var(--text); background:rgba(27,33,43,.78);
+               border:1px solid var(--line); border-radius:6px; padding:5px 11px; cursor:pointer; }
+      button:hover { border-color:#3a4657; }
+      button.primary { border-color:#2a5a5e; color:#a5f3fc; background:rgba(16,34,39,.8); }
+      button.danger { border-color:#5a2a28; color:#ffb4ae; background:rgba(36,22,21,.8); }
+      button.small { padding:3px 8px; font-size:11px; }
+      .tabs { display:flex; gap:4px; overflow-x:auto; max-width:56vw; }
+      .tabs button { background:transparent; border:1px solid transparent; border-radius:999px;
+                     padding:4px 10px; color:var(--dim); white-space:nowrap; }
+      .tabs button.active { color:var(--accent); border-color:#24505f; background:rgba(16,34,39,.72); }
+      main { flex:1 1 auto; min-height:0; display:flex; gap:12px; padding:14px; overflow:auto;
+             background: radial-gradient(125% 95% at 50% 0%, rgba(9,13,19,.30) 0%, rgba(8,10,14,.68) 52%, rgba(7,9,12,.86) 100%),
+                         #0b0e12 url("./bg.jpg") center / cover no-repeat; }
+      aside { flex:0 0 210px; overflow:auto; background:rgba(19,24,31,.62); border:1px solid var(--line);
+              border-radius:10px; padding:8px; }
+      aside button { display:block; width:100%; text-align:left; margin-bottom:4px; background:transparent; border:1px solid transparent; }
+      aside button.active { border-color:#24505f; background:rgba(16,34,39,.55); color:var(--accent); }
+      .col { flex:1 1 auto; min-width:0; display:flex; flex-direction:column; gap:10px; }
+      .card { background:rgba(19,24,31,.62); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+      .card h2 { font-size:13px; margin:0 0 6px; }
+      .row { display:flex; align-items:center; gap:10px; padding:5px 0; }
+      .row label { min-width:170px; font-size:12.5px; }
+      .row .hint { color:var(--dim); font-size:11px; }
+      input[type="checkbox"] { width:16px; height:16px; accent-color:#7dd3fc; }
+      input[type="text"], textarea {
+        background:rgba(10,14,20,.7); border:1px solid var(--line); border-radius:6px;
+        color:var(--text); padding:5px 8px; font:inherit; font-size:12px; width:100%;
+      }
+      textarea { min-height:420px; resize:vertical; line-height:1.6; }
+      .grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(170px,1fr)); gap:10px; }
+      .stat { background:rgba(19,24,31,.62); border:1px solid var(--line); border-radius:10px; padding:12px 14px; }
+      .stat .k { color:var(--dim); font-size:11.5px; }
+      .stat .v { font-size:20px; color:var(--text); }
+      .item { background:rgba(19,24,31,.62); border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:8px; }
+      .item .top { display:flex; gap:8px; align-items:center; margin-bottom:6px; }
+      .item .meta { color:var(--dim); font-size:11px; margin-top:4px; }
+      #learnTerm { background:rgba(10,14,20,.7); border:1px solid var(--line); border-radius:6px;
+                    color:var(--text); padding:5px 9px; font:inherit; font-size:12px; width:180px; }
+      #slangSearch { background:rgba(10,14,20,.7); border:1px solid var(--line); border-radius:6px;
+                    color:var(--text); padding:5px 9px; font:inherit; font-size:12px; width:180px; }
+      button.pin { background:rgba(27,33,43,.6); color:var(--dim); }
+      button.pin.on { color:#f5c26b; border-color:#5a4a22; background:rgba(46,36,16,.7); }
+      #status { font-size:12px; } #status.ok { color:var(--ok); } #status.bad { color:var(--bad); }
+      #banner { display:none; margin:0; padding:9px 12px; border:1px solid #5a3d22;
+                background:#251a10; color:var(--warn); border-radius:8px; font-size:12px; }
+      #banner.show { display:block; }
+      table { width:100%; border-collapse:collapse; }
+      td, th { text-align:left; padding:6px 8px; border-bottom:1px solid var(--line); font-size:12px; }
+      th { color:var(--dim); font-weight:500; }
+
+      /* ── 窄屏（手机）适配 ── */
+      @media (max-width: 720px) {
+        header { flex-wrap: wrap; gap: 6px; padding: 8px 10px; }
+        header h1 { font-size: 12px; flex: 0 0 auto; }
+        .tabs {
+          order: 9; width: 100%; max-width: 100%;
+          -webkit-overflow-scrolling: touch;
+        }
+        .tabs button { padding: 6px 12px; font-size: 12px; }
+        main { flex-direction: column; padding: 10px; gap: 10px; }
+        aside { flex: 0 0 auto; max-height: 26vh; width: 100%; }
+        .grid { grid-template-columns: 1fr; }
+        .row { flex-wrap: wrap; }
+        .row label { flex: 1 1 100%; min-width: 0; }
+        .row input[type="number"] { width: 110px; }
+        .row input[type="text"] { flex: 1 1 100%; }
+        .card, .item, .stat { padding: 10px 11px; }
+        textarea { min-height: 220px; }
+        .pane { flex: 1 1 auto !important; }
+        .pane.p1, .pane.p2 { flex: 0 0 auto !important; max-height: 20vh; }
+        pre.check { max-height: 42vh; }
+        #cards { gap: 8px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>梗库</h1>
+      <nav class="tabs" id="tabs"></nav>
+      <span class="spacer"></span>
+      <span id="status"></span>
+      <input type="search" id="slangSearch" placeholder="搜索词/释义" />
+      <input type="text" id="learnTerm" placeholder="输入一个词，联网学" />
+      <button id="learn">学梗</button>
+      <button id="add">新增</button>
+      <button class="primary" id="save">保存</button>
+    </header>
+    <main>
+      <aside id="files"></aside>
+      <section class="col">
+        <div id="banner"></div>
+        <div id="list"></div>
+      </section>
+</main>
+    <script>
+        function selfNavigate(page){ if(window.__NAV__ && window.__NAV__[page]){ location.href = window.__NAV__[page]; } }
+
+      (function () {
+        "use strict";
+
+        var PAGES = [
+          ["status","状态"],["logs","日志"],["ops","运维"],["groups","群聊"],
+          ["memory","记忆"],["slang","梗库"],["content","内容"],["maint","维护"],
+          ["period","时段"],["growth","成长"],["persona","角色卡"],["star","心穹中枢"]
+        ];
+        var CURRENT = "slang", PLUGIN = "astrbot_plugin_console", bridge = null;
+        var bannerEl = document.getElementById("banner");
+        function banner(t){ bannerEl.textContent=t; bannerEl.classList.add("show"); }
+        function clearBanner(){ bannerEl.classList.remove("show"); }
+        function setStatus(t, tone){ var e=document.getElementById("status"); e.textContent=t||""; e.className=tone||""; }
+        function renderTabs(){
+          var nav=document.getElementById("tabs");
+          PAGES.forEach(function(pair){
+            var b=document.createElement("button"); b.type="button"; b.textContent=pair[1];
+            if(pair[0]===CURRENT) b.classList.add("active");
+            b.addEventListener("click", function(){
+              try { selfNavigate(pair[0]); }
+              catch(e){ banner("宿主不允许切换页面："+e); }
+            });
+            nav.appendChild(b);
+          });
+        }
+        function bootBridge(start, attempt){
+          attempt = attempt || 0;
+          bridge = window.AstrBotPluginView || window.AstrBotPluginPage;
+          if(!bridge){
+            if(attempt < 30){ setTimeout(function(){ bootBridge(start, attempt+1); }, 100); return; }
+            banner("没有检测到 AstrBot 页面桥 —— 请从 WebUI → 扩展功能 → Atri控制台 进入。");
+            return;
+          }
+          renderTabs();
+          if(typeof bridge.ready === "function"){
+            Promise.race([bridge.ready(), new Promise(function(r){ setTimeout(r, 1500); })]).finally(start);
+          } else { start(); }
+        }
+
+
+        var data = { items: [], updated_at: "" };
+        var query = "";
+        function injectionWindow(items){
+          var sorted = items.slice().sort(function(a,b){
+            var pa = a.pin ? 1 : 0, pb = b.pin ? 1 : 0;
+            if (pa !== pb) return pb - pa;
+            return String(b.learned_at||"").localeCompare(String(a.learned_at||""));
+          });
+          var used = 0, inSet = {};
+          for (var i = 0; i < sorted.length && i < 40; i++) {
+            var it = sorted[i];
+            var line = "- " + it.term + "：" + (it.meaning||"");
+            if (it.usage) line += "（" + it.usage + "）";
+            if (used + line.length > 1200) break;
+            inSet[it.term] = true;
+            used += line.length + 1;
+          }
+          return inSet;
+        }
+
+        function render(){
+          var box=document.getElementById("list"); box.replaceChildren();
+          var inWindow = injectionWindow(data.items);
+          // 列表也按「置顶优先 + 时间倒序」显示，这样带不带上一眼就看得出来
+          var orderIdx = data.items.map(function(_, i){ return i; }).sort(function(a, b){
+            var ia = data.items[a], ib = data.items[b];
+            var pa = ia.pin ? 1 : 0, pb = ib.pin ? 1 : 0;
+            if (pa !== pb) return pb - pa;
+            return String(ib.learned_at||"").localeCompare(String(ia.learned_at||""));
+          });
+          orderIdx.forEach(function(idx){
+            var it = data.items[idx];
+            if (query) {
+              var hay = [it.term, it.meaning, it.usage, it.example].join(" ").toLowerCase();
+              if (hay.indexOf(query) === -1) return;
+            }
+            var card=document.createElement("div"); card.className="item";
+            var top=document.createElement("div"); top.className="top";
+            var term=document.createElement("input"); term.type="text"; term.value=it.term||"";
+            term.placeholder="词";
+            term.addEventListener("input", function(){ it.term=term.value; });
+            var pin=document.createElement("button");
+            pin.type="button";
+            pin.className = it.pin ? "small pin on" : "small pin";
+            pin.textContent = it.pin ? "★ 已置顶" : "☆ 置顶";
+            pin.title = "置顶的梗永远排在注入列表最前面，不会被新学的挤掉";
+            pin.addEventListener("click", function(){
+              it.pin = !it.pin;
+              render(); setStatus("置顶状态改了，记得保存","");
+            });
+            var del=document.createElement("button"); del.className="danger small"; del.textContent="删除";
+            del.addEventListener("click", function(){
+              if(!confirm("删除这条梗？保存后生效")) return;
+              data.items.splice(idx,1); render(); setStatus("有改动，记得保存","");
+            });
+            top.appendChild(term); top.appendChild(pin); top.appendChild(del); card.appendChild(top);
+            ["meaning","usage","example"].forEach(function(key){
+              var ta=document.createElement("textarea"); ta.style.minHeight="52px";
+              ta.value=it[key]||""; ta.placeholder=key;
+              ta.addEventListener("input", function(){ it[key]=ta.value; });
+              card.appendChild(ta);
+            });
+            var meta=document.createElement("div"); meta.className="meta";
+            meta.textContent = (it.source || "") + (inWindow[it.term] ? " · 每轮会带上" : " · 超出上限，暂不带上");
+            card.appendChild(meta);
+            box.appendChild(card);
+          });
+          document.getElementById("files").replaceChildren();
+          var info=document.createElement("div"); info.className="meta";
+          info.textContent = "共 " + data.items.length + " 条 · 更新于 " + (data.updated_at||"—");
+          document.getElementById("files").appendChild(info);
+        }
+        async function load(){
+          setStatus("读取中…");
+          try{
+            var d=await bridge.apiGet("slang");
+            data.items=(d&&d.items)||[]; data.updated_at=(d&&d.updated_at)||"";
+            render(); clearBanner(); setStatus("");
+          }catch(e){ banner("读取失败："+(e&&e.message?e.message:e)); setStatus(""); }
+        }
+        async function save(){
+          setStatus("保存中…");
+          try{
+            var r=await bridge.apiPost("slang/save", { items: data.items });
+            setStatus("已保存 "+(r.count||data.items.length)+" 条（写前已快照）","ok"); clearBanner(); await load();
+          }catch(e){ setStatus("保存失败","bad"); banner("保存失败："+(e&&e.message?e.message:e)); }
+        }
+
+
+          document.getElementById("add").addEventListener("click", function(){
+            data.items.unshift({ term:"", meaning:"", usage:"", example:"", source:"" });
+            render();
+          });
+          document.getElementById("slangSearch").addEventListener("input", function (e) {
+            query = String(e.target.value || "").trim().toLowerCase();
+            render();
+          });
+          document.getElementById("save").addEventListener("click", save);
+          var learnTimer = null;
+          function stopLearn() { if (learnTimer) { clearTimeout(learnTimer); learnTimer = null; } }
+          async function pollLearn() {
+            try {
+              var d = await bridge.apiGet("slang/learn_status");
+              if (d.running) {
+                setStatus("正在学「" + d.term + "」… 已 " + (d.elapsed || 0) + "s（联网搜索 + 提炼，通常 10–30 秒）");
+                learnTimer = setTimeout(pollLearn, 1500);
+                return;
+              }
+              stopLearn();
+              if (d.error) {
+                setStatus("学梗失败：" + d.error, "bad");
+                banner("学梗失败：" + d.error);
+              } else if (d.result) {
+                setStatus(d.result.message || "完成", "ok");
+                if (d.result.kind === "one" && d.result.entry) {
+                  banner("「" + d.result.entry.term + "」：" + (d.result.entry.meaning || "") +
+                         "（来源：" + (d.result.entry.source === "search" ? "联网" : "模型知识") + "）");
+                }
+                await load();
+              } else {
+                setStatus("");
+              }
+            } catch (e) { stopLearn(); setStatus("查询进度失败", "bad"); }
+          }
+          document.getElementById("learn").addEventListener("click", async function () {
+            var input = document.getElementById("learnTerm");
+            var term = String(input.value || "").trim();
+            if (!term) { setStatus("先填一个词", "bad"); return; }
+            try {
+              var r = await bridge.apiPost("slang/learn", { term: term });
+              if (r && r.exists) {
+                var old = (r.entry && r.entry.meaning) || "";
+                if (!confirm("「" + term + "」已经在库里：\n" + old + "\n\n要联网重学并覆盖吗？")) {
+                  setStatus("已取消（没有覆盖）");
+                  return;
+                }
+                await bridge.apiPost("slang/learn", { term: term, force: true });
+              }
+              setStatus("已下发，正在学「" + term + "」…");
+              pollLearn();
+            } catch (e) {
+              setStatus("下发失败", "bad");
+              banner("学梗失败：" + (e && e.message ? e.message : e));
+            }
+          });
+          bootBridge(load);
+
+      })();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,9 @@
+name: astrbot_plugin_xinqiong
+display_name: 心穹中枢
+short_desc: 她的记忆星空：一个球形的记忆图谱
+desc: 把 Atri 的记忆库渲染成一颗会呼吸的星图球体：中心是原意识，星星按清晰度/情绪/新旧分层，
+  可以钻进中心看万家灯火、按时间轴回放她记住的每一件事。页面内容由 Atri控制台 生成后镜像过来。
+help: WebUI → 扩展功能 → 心穹中枢
+version: v1.0.0
+author: Atri
+astrbot_version: ">=4.20.0"

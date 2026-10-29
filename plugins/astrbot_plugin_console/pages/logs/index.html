@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>日志 · Atri控制台</title>
+    <!-- 宿主会把这一行改写成带 asset_token 的真实地址；放在 head 里可保证先于下面的脚本执行 -->
+    <script src="/api/plugin/page/bridge-sdk.js"></script>
+    <script src="nav.js"></script>
+    <style>
+      :root {
+        --bg: #0d1014;
+        --panel: #14181f;
+        --line: #232a35;
+        --text: #d7dee9;
+        --dim: #7d8899;
+        --accent: #7dd3fc;
+        --warn: #f5c26b;
+        --err: #ff7b72;
+        --mono: ui-monospace, "Cascadia Mono", Consolas, "Sarasa Mono SC", monospace;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font: 13px/1.5 var(--mono);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 10px 14px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--line);
+      }
+      header h1 {
+        font-size: 13px;
+        font-weight: 600;
+        margin: 0;
+        letter-spacing: 0.02em;
+        color: var(--accent);
+      }
+      .meta {
+        color: var(--dim);
+        font-size: 11.5px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        max-width: 42vw;
+      }
+      .spacer { flex: 1 1 auto; }
+      button, select, input[type="search"] {
+        font: inherit;
+        font-size: 12px;
+        color: var(--text);
+        background: #1b212b;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        padding: 5px 9px;
+      }
+      button { cursor: pointer; }
+      button:hover { border-color: #3a4657; background: #212936; }
+      button.on { border-color: var(--accent); color: var(--accent); }
+      input[type="search"] { width: 190px; }
+      label.sw {
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        color: var(--dim);
+        font-size: 12px;
+        user-select: none;
+      }
+      main { flex: 1 1 auto; min-height: 0; position: relative; }
+      #log {
+        position: absolute;
+        inset: 0;
+        margin: 0;
+        padding: 8px 14px 40px;
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-all;
+        font-family: var(--mono);
+        font-size: 12.5px;
+        line-height: 1.62;
+        tab-size: 4;
+      }
+      #log.nowrap { white-space: pre; word-break: normal; }
+      #log .ln { display: block; }
+      #log .ln.warn { color: var(--warn); }
+      #log .ln.err { color: var(--err); }
+      #log .ln.dim { color: #5d6776; }
+      footer {
+        display: flex;
+        gap: 12px;
+        align-items: center;
+        padding: 5px 14px;
+        border-top: 1px solid var(--line);
+        background: var(--panel);
+        color: var(--dim);
+        font-size: 11.5px;
+      }
+      .dot { width: 7px; height: 7px; border-radius: 50%; background: #4ade80; }
+      .dot.stale { background: var(--warn); }
+      .dot.bad { background: var(--err); }
+      #banner {
+        display: none;
+        margin: 12px 14px;
+        padding: 10px 12px;
+        border: 1px solid #5a3d22;
+        background: #251a10;
+        color: var(--warn);
+        border-radius: 8px;
+        font-size: 12px;
+      }
+      #banner.show { display: block; }
+      .empty { color: var(--dim); }
+      .tabs { display: flex; gap: 4px; overflow-x: auto; max-width: 62vw; }
+      .tabs button { white-space: nowrap; }
+      .tabs button {
+        font: inherit; font-size: 12px; color: var(--dim);
+        background: transparent; border: 1px solid transparent;
+        border-radius: 999px; padding: 4px 11px; cursor: pointer;
+      }
+      .tabs button:hover { color: var(--text); border-color: var(--line); }
+      .tabs button.active { color: var(--accent); border-color: #24505f; background: #102227; }
+
+      /* 背景：放在 main 上（放 body/html 上，在宿主 iframe 里会被画成两块亮度断层） */
+      html, body { background: #0b0e12; }
+      main {
+        background:
+          radial-gradient(125% 95% at 50% 0%,
+            rgba(9,13,19,.30) 0%,
+            rgba(8,10,14,.68) 52%,
+            rgba(7,9,12,.86) 100%),
+          #0b0e12 url("./bg.jpg") center / cover no-repeat;
+      }
+      header, main, footer { position: relative; z-index: 1; }
+      header, footer {
+        background: rgba(15,19,25,.62) !important;
+        -webkit-backdrop-filter: blur(16px) saturate(1.2);
+        backdrop-filter: blur(16px) saturate(1.2);
+      }
+      .card, table, pre.check {
+        background: rgba(19,24,31,.66) !important;
+        -webkit-backdrop-filter: blur(12px) saturate(1.15);
+        backdrop-filter: blur(12px) saturate(1.15);
+      }
+      #log { background: rgba(11,15,20,.60) !important; }
+      button, select, input[type="search"] {
+        background: rgba(27,33,43,.70) !important;
+        -webkit-backdrop-filter: blur(8px);
+        backdrop-filter: blur(8px);
+      }
+      .tabs button { background: transparent !important; backdrop-filter: none; -webkit-backdrop-filter: none; }
+      .tabs button.active { background: rgba(16,34,39,.72) !important; }
+    
+      /* ── 窄屏（手机）适配 ── */
+      @media (max-width: 720px) {
+        header { flex-wrap: wrap; gap: 6px; padding: 8px 10px; }
+        header h1 { font-size: 12px; flex: 0 0 auto; }
+        .tabs {
+          order: 9; width: 100%; max-width: 100%;
+          -webkit-overflow-scrolling: touch;
+        }
+        .tabs button { padding: 6px 12px; font-size: 12px; }
+        main { flex-direction: column; padding: 10px; gap: 10px; }
+        aside { flex: 0 0 auto; max-height: 26vh; width: 100%; }
+        .grid { grid-template-columns: 1fr; }
+        .row { flex-wrap: wrap; }
+        .row label { flex: 1 1 100%; min-width: 0; }
+        .row input[type="number"] { width: 110px; }
+        .row input[type="text"] { flex: 1 1 100%; }
+        .card, .item, .stat { padding: 10px 11px; }
+        textarea { min-height: 220px; }
+        .pane { flex: 1 1 auto !important; }
+        .pane.p1, .pane.p2 { flex: 0 0 auto !important; max-height: 20vh; }
+        pre.check { max-height: 42vh; }
+        #cards { gap: 8px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>日志</h1>
+      <nav class="tabs" aria-label="控制台页面">
+        <button type="button" data-page="status">状态</button>
+        <button type="button" data-page="logs">日志</button>
+        <button type="button" data-page="ops">运维</button>
+        <button type="button" data-page="groups">群聊</button>
+        <button type="button" data-page="memory">记忆</button>
+        <button type="button" data-page="slang">梗库</button>
+        <button type="button" data-page="content">内容</button>
+        <button type="button" data-page="maint">维护</button>
+        <button type="button" data-page="period">时段</button>
+        <button type="button" data-page="growth">成长</button>
+        <button type="button" data-page="persona">角色卡</button>
+        <button type="button" data-page="star">心穹中枢</button>
+      </nav>
+      <span class="meta" id="meta">等待连接…</span>
+      <span class="spacer"></span>
+      <select id="lines" title="显示行数">
+        <option value="100">100 行</option>
+        <option value="200" selected>200 行</option>
+        <option value="500">500 行</option>
+        <option value="1000">1000 行</option>
+        <option value="2000">2000 行</option>
+      </select>
+      <input type="search" id="filter" placeholder="过滤（子串，留空=全部）" />
+      <button id="pause" title="暂停 / 继续自动刷新">暂停</button>
+      <button id="nowrap" title="切换自动换行">不换行</button>
+      <button id="refresh" title="立刻刷新">刷新</button>
+    </header>
+
+    <div id="banner"></div>
+
+    <main>
+      <pre id="log"><span class="empty">载入中…</span></pre>
+    </main>
+
+    <footer>
+      <span class="dot" id="dot"></span>
+      <span id="state">初始化</span>
+      <span class="spacer"></span>
+      <span id="count"></span>
+      <span id="clock"></span>
+    </footer>
+
+    <script>
+        function selfNavigate(page){ if(window.__NAV__ && window.__NAV__[page]){ location.href = window.__NAV__[page]; } }
+
+      (function () {
+        "use strict";
+
+        var PLUGIN = "astrbot_plugin_console";
+        var CURRENT = "logs";
+        (function bindTabs() {
+          var buttons = document.querySelectorAll(".tabs button");
+          Array.prototype.forEach.call(buttons, function (btn) {
+            var page = btn.getAttribute("data-page");
+            if (page === CURRENT) btn.classList.add("active");
+            btn.addEventListener("click", function () {
+              try {
+                selfNavigate(page);
+              } catch (error) {
+                var el = document.getElementById("banner");
+                if (el) { el.textContent = "宿主不允许切换页面：" + error; el.classList.add("show"); }
+              }
+            });
+          });
+        })();
+
+        var bridge = null;
+        var logEl = document.getElementById("log");
+        var metaEl = document.getElementById("meta");
+        var countEl = document.getElementById("count");
+        var clockEl = document.getElementById("clock");
+        var stateEl = document.getElementById("state");
+        var dotEl = document.getElementById("dot");
+        var bannerEl = document.getElementById("banner");
+
+        var REFRESH_MS = 2000;
+        var state = {
+          lines: 200,
+          paused: false,
+          filter: "",
+          wrap: true,
+          pinned: true,
+          timer: null,
+          busy: false,
+          lastSize: -1,
+        };
+
+        function banner(text) {
+          bannerEl.textContent = text;
+          bannerEl.classList.add("show");
+        }
+
+        function setState(text, kind) {
+          stateEl.textContent = text;
+          dotEl.className = "dot" + (kind ? " " + kind : "");
+        }
+
+        function fmtBytes(n) {
+          n = Number(n) || 0;
+          if (n < 1024) return n + " B";
+          if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+          return (n / 1024 / 1024).toFixed(2) + " MB";
+        }
+
+        function fmtTime(seconds) {
+          var t = Number(seconds) || 0;
+          if (!t) return "—";
+          var d = new Date(t * 1000);
+          function p(x) { return String(x).padStart(2, "0"); }
+          return p(d.getMonth() + 1) + "-" + p(d.getDate()) + " " + p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds());
+        }
+
+        var ANSI_RE = /\u001b\[[0-9;]*[A-Za-z]/g;
+
+        function stripAnsi(text) {
+          return String(text).replace(ANSI_RE, "");
+        }
+
+        function classify(text) {
+          if (text.indexOf("ERROR") !== -1 || text.indexOf("Traceback") !== -1) return "err";
+          if (text.indexOf("WARN") !== -1) return "warn";
+          if (text.indexOf("DEBUG") !== -1) return "dim";
+          return "";
+        }
+
+        function render(lines) {
+          var fragment = document.createDocumentFragment();
+          var shown = 0;
+          for (var i = 0; i < lines.length; i++) {
+            var text = stripAnsi(lines[i]);
+            if (state.filter && text.toLowerCase().indexOf(state.filter) === -1) continue;
+            var span = document.createElement("span");
+            span.className = "ln " + classify(text);
+            span.textContent = text;
+            fragment.appendChild(span);
+            shown++;
+          }
+          if (!shown) {
+            var empty = document.createElement("span");
+            empty.className = "empty";
+            empty.textContent = state.filter ? "没有匹配「" + state.filter + "」的行" : "还没有日志";
+            fragment.appendChild(empty);
+          }
+          logEl.replaceChildren(fragment);
+          countEl.textContent = "显示 " + shown + " / " + lines.length + " 行";
+          if (state.pinned) logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        async function refresh() {
+          if (!bridge) return;
+          if (state.busy) return;
+          state.busy = true;
+          try {
+            var payload = await bridge.apiGet("logs/tail", { lines: state.lines });
+            if (!payload) throw new Error("接口没有返回内容");
+            if (payload.status === "error") throw new Error(payload.message || "接口返回失败");
+            // 宿主会脱掉一层 {status, data}，脱不掉时也能用
+            var data = Array.isArray(payload.lines) ? payload : payload.data || {};
+            var lines = data.lines || [];
+            metaEl.textContent = data.path + " · " + fmtBytes(data.size) + " · 更新于 " + fmtTime(data.mtime);
+            if (data.truncated) metaEl.textContent += " · 已截断";
+            render(lines);
+            state.lastSize = data.size;
+            setState("已连接 · 每 " + REFRESH_MS / 1000 + "s 刷新", "");
+            clockEl.textContent = "刷新于 " + new Date().toLocaleTimeString("zh-CN");
+          } catch (error) {
+            setState("刷新失败", "bad");
+            banner("读取日志失败：" + (error && error.message ? error.message : error));
+          } finally {
+            state.busy = false;
+          }
+        }
+
+        function schedule() {
+          if (state.timer) clearTimeout(state.timer);
+          if (state.paused) return;
+          state.timer = setTimeout(function () {
+            refresh().finally(schedule);
+          }, REFRESH_MS);
+        }
+
+        function init() {
+          if (!bridge) {
+            setState("没有检测到 AstrBot 页面桥", "bad");
+            banner("这个页面要从 AstrBot WebUI 进入（插件 → Atri控制台 → 页面 logs）。单独打开拿不到登录态。");
+            logEl.replaceChildren();
+            return;
+          }
+          document.getElementById("lines").addEventListener("change", function (e) {
+            state.lines = Number(e.target.value) || 200;
+            refresh();
+          });
+          document.getElementById("filter").addEventListener("input", function (e) {
+            state.filter = String(e.target.value || "").trim().toLowerCase();
+            refresh();
+          });
+          document.getElementById("pause").addEventListener("click", function (e) {
+            state.paused = !state.paused;
+            e.target.classList.toggle("on", state.paused);
+            e.target.textContent = state.paused ? "继续" : "暂停";
+            setState(state.paused ? "已暂停" : "已恢复", state.paused ? "stale" : "");
+            schedule();
+          });
+          document.getElementById("nowrap").addEventListener("click", function (e) {
+            state.wrap = !state.wrap;
+            logEl.classList.toggle("nowrap", !state.wrap);
+            e.target.classList.toggle("on", !state.wrap);
+          });
+          document.getElementById("refresh").addEventListener("click", function () {
+            refresh();
+          });
+          logEl.addEventListener("scroll", function () {
+            var nearBottom = logEl.scrollTop + logEl.clientHeight >= logEl.scrollHeight - 24;
+            state.pinned = nearBottom;
+          });
+          setState("连接中…", "stale");
+          refresh().finally(schedule);
+        }
+
+        function boot(attempt) {
+          bridge = window.AstrBotPluginView || window.AstrBotPluginPage;
+          if (!bridge) {
+            if (attempt < 30) {
+              setTimeout(function () { boot(attempt + 1); }, 100);
+              return;
+            }
+            init();
+            return;
+          }
+          if (typeof bridge.ready === "function") {
+            Promise.race([
+              bridge.ready(),
+              new Promise(function (resolve) { setTimeout(resolve, 1500); }),
+            ]).finally(init);
+          } else {
+            init();
+          }
+        }
+
+        // 宿主也可能把 SDK 插在 body 末尾 —— 所以拿不到桥时再等一会儿（最多 3 秒）
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", function () { boot(0); });
+        } else {
+          boot(0);
+        }
+      })();
+    </script>
+  </body>
+</html>

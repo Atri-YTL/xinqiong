@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>状态 · Atri控制台</title>
+    <script src="/api/plugin/page/bridge-sdk.js"></script>
+    <script src="nav.js"></script>
+    <style>
+      :root {
+        --bg: #0d1014;
+        --panel: #14181f;
+        --card: #171c25;
+        --line: #232a35;
+        --text: #d7dee9;
+        --dim: #7d8899;
+        --accent: #7dd3fc;
+        --ok: #4ade80;
+        --warn: #f5c26b;
+        --bad: #ff7b72;
+        --mono: ui-monospace, "Cascadia Mono", Consolas, "Sarasa Mono SC", monospace;
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font: 13px/1.55 var(--mono);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        background: var(--panel);
+        border-bottom: 1px solid var(--line);
+        flex: 0 0 auto;
+      }
+      header h1 { font-size: 13px; margin: 0; color: var(--accent); font-weight: 600; }
+      .spacer { flex: 1 1 auto; }
+      .dim { color: var(--dim); font-size: 11.5px; }
+      button {
+        font: inherit; font-size: 12px; color: var(--text);
+        background: #1b212b; border: 1px solid var(--line);
+        border-radius: 6px; padding: 5px 10px; cursor: pointer;
+      }
+      button:hover { border-color: #3a4657; background: #212936; }
+      button.on { border-color: var(--accent); color: var(--accent); }
+      main { flex: 1 1 auto; min-height: 0; overflow: auto; padding: 14px; }
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+        gap: 10px;
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 12px 13px;
+        min-height: 78px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .card .k { color: var(--dim); font-size: 11.5px; letter-spacing: 0.02em; }
+      .card .v { font-size: 19px; line-height: 1.2; color: var(--text); word-break: break-all; }
+      .card .v small { font-size: 12px; color: var(--dim); }
+      .card.ok .v { color: var(--ok); }
+      .card.warn .v { color: var(--warn); }
+      .card.bad .v { color: var(--bad); }
+      section { margin-top: 14px; }
+      section h2 {
+        font-size: 12px; font-weight: 600; color: var(--dim);
+        margin: 0 0 8px; letter-spacing: 0.04em;
+      }
+      table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+      th, td { text-align: left; padding: 7px 12px; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+      th { color: var(--dim); font-weight: 500; background: #131820; }
+      tr:last-child td { border-bottom: none; }
+      .bars { display: flex; gap: 8px; flex-wrap: wrap; }
+      .pill {
+        display: inline-flex; align-items: center; gap: 6px;
+        border: 1px solid var(--line); border-radius: 999px;
+        padding: 4px 10px; font-size: 11.5px; color: var(--dim);
+      }
+      .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dim); }
+      .dot.ok { background: var(--ok); }
+      .dot.bad { background: var(--bad); }
+      .dot.warn { background: var(--warn); }
+      pre.check {
+        margin: 0; padding: 12px 14px;
+        background: #0a0d11; border: 1px solid var(--line); border-radius: 10px;
+        font-size: 12.5px; line-height: 1.6; white-space: pre-wrap;
+        max-height: 260px; overflow: auto;
+      }
+      #banner {
+        display: none; margin: 0 0 12px; padding: 9px 12px;
+        border: 1px solid #5a3d22; background: #251a10; color: var(--warn);
+        border-radius: 8px; font-size: 12px;
+      }
+      #banner.show { display: block; }
+      .tabs { display: flex; gap: 4px; overflow-x: auto; max-width: 62vw; }
+      .tabs button { white-space: nowrap; }
+      .tabs button {
+        font: inherit; font-size: 12px; color: var(--dim);
+        background: transparent; border: 1px solid transparent;
+        border-radius: 999px; padding: 4px 11px; cursor: pointer;
+      }
+      .tabs button:hover { color: var(--text); border-color: var(--line); }
+      .tabs button.active { color: var(--accent); border-color: #24505f; background: #102227; }
+
+      /* 背景：放在 main 上（放 body/html 上，在宿主 iframe 里会被画成两块亮度断层） */
+      html, body { background: #0b0e12; }
+      main {
+        background:
+          radial-gradient(125% 95% at 50% 0%,
+            rgba(9,13,19,.30) 0%,
+            rgba(8,10,14,.68) 52%,
+            rgba(7,9,12,.86) 100%),
+          #0b0e12 url("./bg.jpg") center / cover no-repeat;
+      }
+      header, main, footer { position: relative; z-index: 1; }
+      header, footer {
+        background: rgba(15,19,25,.62) !important;
+        -webkit-backdrop-filter: blur(16px) saturate(1.2);
+        backdrop-filter: blur(16px) saturate(1.2);
+      }
+      .card, table, pre.check {
+        background: rgba(19,24,31,.66) !important;
+      }
+      #log { background: rgba(11,15,20,.60) !important; }
+      button, select, input[type="search"] {
+        background: rgba(27,33,43,.70) !important;
+        -webkit-backdrop-filter: blur(8px);
+        backdrop-filter: blur(8px);
+      }
+      .tabs button { background: transparent !important; backdrop-filter: none; -webkit-backdrop-filter: none; }
+      .tabs button.active { background: rgba(16,34,39,.72) !important; }
+    
+      /* ── 窄屏（手机）适配 ── */
+      @media (max-width: 720px) {
+        header { flex-wrap: wrap; gap: 6px; padding: 8px 10px; }
+        header h1 { font-size: 12px; flex: 0 0 auto; }
+        .tabs {
+          order: 9; width: 100%; max-width: 100%;
+          -webkit-overflow-scrolling: touch;
+        }
+        .tabs button { padding: 6px 12px; font-size: 12px; }
+        main { flex-direction: column; padding: 10px; gap: 10px; }
+        aside { flex: 0 0 auto; max-height: 26vh; width: 100%; }
+        .grid { grid-template-columns: 1fr; }
+        .row { flex-wrap: wrap; }
+        .row label { flex: 1 1 100%; min-width: 0; }
+        .row input[type="number"] { width: 110px; }
+        .row input[type="text"] { flex: 1 1 100%; }
+        .card, .item, .stat { padding: 10px 11px; }
+        textarea { min-height: 220px; }
+        .pane { flex: 1 1 auto !important; }
+        .pane.p1, .pane.p2 { flex: 0 0 auto !important; max-height: 20vh; }
+        pre.check { max-height: 42vh; }
+        #cards { gap: 8px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>状态</h1>
+      <nav class="tabs" aria-label="控制台页面">
+        <button type="button" data-page="status">状态</button>
+        <button type="button" data-page="logs">日志</button>
+        <button type="button" data-page="ops">运维</button>
+        <button type="button" data-page="groups">群聊</button>
+        <button type="button" data-page="memory">记忆</button>
+        <button type="button" data-page="slang">梗库</button>
+        <button type="button" data-page="content">内容</button>
+        <button type="button" data-page="maint">维护</button>
+        <button type="button" data-page="period">时段</button>
+        <button type="button" data-page="growth">成长</button>
+        <button type="button" data-page="persona">角色卡</button>
+        <button type="button" data-page="star">心穹中枢</button>
+      </nav>
+      <span class="dim" id="stamp">载入中…</span>
+      <span class="spacer"></span>
+      <button id="balance">查余额</button>
+      <button id="health">一键体检</button>
+      <button id="refresh">刷新</button>
+    </header>
+
+    <main>
+      <div id="banner"></div>
+
+      <div class="grid" id="cards"></div>
+
+      <section>
+        <h2>端口</h2>
+        <div class="bars" id="ports"></div>
+      </section>
+
+      <section>
+        <h2>人设（字数）</h2>
+        <table id="personas">
+          <thead><tr><th>persona</th><th style="width:120px">字数</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </section>
+
+      <section id="checkWrap" style="display: none">
+        <h2>体检结果</h2>
+        <pre class="check" id="checkOut"></pre>
+      </section>
+    </main>
+
+    <script>
+        function selfNavigate(page){ if(window.__NAV__ && window.__NAV__[page]){ location.href = window.__NAV__[page]; } }
+
+      (function () {
+        "use strict";
+
+        var PLUGIN = "astrbot_plugin_console";
+        var CURRENT = "status";
+        (function bindTabs() {
+          var buttons = document.querySelectorAll(".tabs button");
+          Array.prototype.forEach.call(buttons, function (btn) {
+            var page = btn.getAttribute("data-page");
+            if (page === CURRENT) btn.classList.add("active");
+            btn.addEventListener("click", function () {
+              try {
+                selfNavigate(page);
+              } catch (error) {
+                var el = document.getElementById("banner");
+                if (el) { el.textContent = "宿主不允许切换页面：" + error; el.classList.add("show"); }
+              }
+            });
+          });
+        })();
+
+        var bridge = null;
+        var REFRESH_MS = 10000;
+        var state = { timer: null, busy: false, balance: "" };
+        var bannerEl = document.getElementById("banner");
+
+        function banner(text) {
+          bannerEl.textContent = text;
+          bannerEl.classList.add("show");
+        }
+        function clearBanner() { bannerEl.classList.remove("show"); }
+
+        function fmtBytes(n) {
+          n = Number(n) || 0;
+          if (n < 1024) return n + " B";
+          if (n < 1048576) return (n / 1024).toFixed(1) + " KB";
+          return (n / 1048576).toFixed(2) + " MB";
+        }
+        function fmtNum(n) {
+          return (Number(n) || 0).toLocaleString("zh-CN");
+        }
+        function el(tag, cls, text) {
+          var node = document.createElement(tag);
+          if (cls) node.className = cls;
+          if (text !== undefined) node.textContent = text;
+          return node;
+        }
+
+        function card(key, label, value, sub, tone) {
+          var box = el("div", "card" + (tone ? " " + tone : ""));
+          box.appendChild(el("div", "k", label));
+          var v = el("div", "v", value);
+          if (sub) {
+            var s = el("small", null, " " + sub);
+            v.appendChild(s);
+          }
+          box.appendChild(v);
+          return box;
+        }
+
+        function renderStatus(d) {
+          var cards = document.getElementById("cards");
+          cards.replaceChildren();
+
+          var portsAll = d.ports_up === d.ports_total;
+          cards.appendChild(card("ports", "端口", d.ports_up + "/" + d.ports_total, "在监听", portsAll ? "ok" : "bad"));
+
+          var nick = d.login && d.login.nickname;
+          cards.appendChild(card("login", "登录账号", nick || "未登录",
+            d.login && d.login.user_id ? String(d.login.user_id) : "", nick ? "ok" : "bad"));
+
+          cards.appendChild(card("online", "连接状态", d.online ? (d.good ? "在线 · 正常" : "在线 · 异常") : "离线",
+            "", d.online && d.good ? "ok" : "bad"));
+
+          cards.appendChild(card("napcat", "NapCat", d.napcat && d.napcat.app_version || "—",
+            d.napcat && d.napcat.protocol_version ? "协议 " + d.napcat.protocol_version : "", d.napcat && d.napcat.app_version ? "ok" : "warn"));
+
+          cards.appendChild(card("pid", "机器人 PID", d.pid_astrbot || "未运行", d.pid_napcat ? "NapCat " + d.pid_napcat : "", d.pid_astrbot ? "ok" : "bad"));
+          cards.appendChild(card("req", "今日请求", fmtNum(d.today_req), "次"));
+          cards.appendChild(card("tok", "今日用量", fmtNum(d.today_tok), "tokens"));
+          cards.appendChild(card("mem", "记忆库", fmtNum(d.memory_items), "条"));
+          cards.appendChild(card("plug", "已装插件", fmtNum(d.plugins), "个"));
+          cards.appendChild(card("log", "日志", fmtBytes(d.log_size), "", ""));
+
+          var c = card("balance", "DeepSeek 余额", state.balance || "未查询", "", "");
+          if (state.balance && state.balance.charAt(0) === "¥") {
+            var num = parseFloat(state.balance.slice(1));
+            if (!isNaN(num) && num < 5) c.className = "card bad";
+            else c.className = "card ok";
+          }
+          cards.appendChild(c);
+
+          var portBox = document.getElementById("ports");
+          portBox.replaceChildren();
+          Object.keys(d.ports || {}).forEach(function (p) {
+            var pill = el("span", "pill");
+            pill.appendChild(el("span", "dot " + (d.ports[p] ? "ok" : "bad")));
+            pill.appendChild(document.createTextNode(p + (d.ports[p] ? " 在听" : " 没听")));
+            portBox.appendChild(pill);
+          });
+
+          var tbody = document.querySelector("#personas tbody");
+          tbody.replaceChildren();
+          (d.personas || []).forEach(function (p) {
+            var tr = el("tr");
+            tr.appendChild(el("td", null, p.id));
+            tr.appendChild(el("td", null, fmtNum(p.chars) + " 字"));
+            tbody.appendChild(tr);
+          });
+          if (!(d.personas || []).length) {
+            var tr = el("tr");
+            var td = el("td", null, "读不到（数据库或表结构变化）");
+            td.colSpan = 2;
+            tr.appendChild(td);
+            tbody.appendChild(tr);
+          }
+
+          document.getElementById("stamp").textContent =
+            "刷新于 " + new Date().toLocaleTimeString("zh-CN") +
+            " · 每 " + REFRESH_MS / 1000 + "s · " + (d.paths ? d.paths.root : "");
+        }
+
+        async function refresh() {
+          if (!bridge || state.busy) return;
+          state.busy = true;
+          try {
+            var d = await bridge.apiGet("status");
+            if (!d || d.status === "error") throw new Error(d && d.message || "接口返回失败");
+            clearBanner();
+            renderStatus(d);
+          } catch (error) {
+            banner("读状态失败：" + (error && error.message ? error.message : error));
+          } finally {
+            state.busy = false;
+          }
+        }
+
+        async function loadBalance() {
+          var btn = document.getElementById("balance");
+          btn.disabled = true;
+          btn.textContent = "查询中…";
+          try {
+            var d = await bridge.apiGet("balance");
+            state.balance = (d && d.balance) || "查不到";
+            clearBanner();
+            await refresh();
+          } catch (error) {
+            banner("查余额失败：" + (error && error.message ? error.message : error));
+          } finally {
+            btn.disabled = false;
+            btn.textContent = "查余额";
+          }
+        }
+
+        async function runHealth() {
+          var btn = document.getElementById("health");
+          btn.disabled = true;
+          btn.textContent = "检查中…";
+          document.getElementById("checkWrap").style.display = "";
+          document.getElementById("checkOut").textContent = "正在跑体检…";
+          try {
+            var d = await bridge.apiGet("health");
+            var lines = (d && d.lines) || [];
+            document.getElementById("checkOut").textContent = lines.join("\n");
+          } catch (error) {
+            document.getElementById("checkOut").textContent =
+              "体检失败：" + (error && error.message ? error.message : error);
+          } finally {
+            btn.disabled = false;
+            btn.textContent = "一键体检";
+          }
+        }
+
+        function schedule() {
+          if (state.timer) clearTimeout(state.timer);
+          state.timer = setTimeout(function () { refresh().finally(schedule); }, REFRESH_MS);
+        }
+
+        function boot(attempt) {
+          bridge = window.AstrBotPluginView || window.AstrBotPluginPage;
+          if (!bridge) {
+            if (attempt < 30) { setTimeout(function () { boot(attempt + 1); }, 100); return; }
+            banner("没有检测到 AstrBot 页面桥 —— 请从 WebUI → 扩展功能 → Atri控制台 → 状态 进入。");
+            return;
+          }
+          document.getElementById("refresh").addEventListener("click", function () { refresh(); });
+          document.getElementById("balance").addEventListener("click", loadBalance);
+          document.getElementById("health").addEventListener("click", runHealth);
+          var start = function () { refresh().finally(schedule); };
+          if (typeof bridge.ready === "function") {
+            Promise.race([bridge.ready(), new Promise(function (r) { setTimeout(r, 1500); })]).finally(start);
+          } else { start(); }
+        }
+
+        if (document.readyState === "loading") {
+          document.addEventListener("DOMContentLoaded", function () { boot(0); });
+        } else { boot(0); }
+      })();
+    </script>
+  </body>
+</html>

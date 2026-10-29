@@ -1,0 +1,232 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>角色卡 · Atri控制台</title>
+    <script src="/api/plugin/page/bridge-sdk.js"></script>
+    <script src="nav.js"></script>
+    <style>
+      :root { --line:#232a35; --text:#d7dee9; --dim:#7d8899; --accent:#7dd3fc;
+              --ok:#4ade80; --warn:#f5c26b; --bad:#ff7b72;
+              --mono: ui-monospace, "Cascadia Mono", Consolas, monospace; }
+      * { box-sizing:border-box; }
+      html, body { height:100%; margin:0; }
+      body { color:var(--text); font:13px/1.55 var(--mono); display:flex; flex-direction:column; overflow:hidden; background:#0b0e12; }
+      header { display:flex; align-items:center; gap:10px; padding:10px 14px;
+               background:rgba(15,19,25,.62); border-bottom:1px solid var(--line); flex:0 0 auto;
+               -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px); position:relative; z-index:1; }
+      header h1 { font-size:13px; margin:0; color:var(--accent); font-weight:600; }
+      .spacer { flex:1 1 auto; }
+      button { font:inherit; font-size:12px; color:var(--text); background:rgba(27,33,43,.78);
+               border:1px solid var(--line); border-radius:6px; padding:5px 11px; cursor:pointer; }
+      button:hover { border-color:#3a4657; }
+      button.primary { border-color:#2a5a5e; color:#a5f3fc; background:rgba(16,34,39,.8); }
+      .tabs { display:flex; gap:4px; overflow-x:auto; max-width:52vw; }
+      .tabs button { background:transparent; border:1px solid transparent; border-radius:999px;
+                     padding:4px 10px; color:var(--dim); white-space:nowrap; }
+      .tabs button.active { color:var(--accent); border-color:#24505f; background:rgba(16,34,39,.72); }
+      main { flex:1 1 auto; min-height:0; display:flex; gap:10px; padding:14px; overflow:hidden;
+             background: radial-gradient(125% 95% at 50% 0%, rgba(9,13,19,.30) 0%, rgba(8,10,14,.68) 52%, rgba(7,9,12,.86) 100%),
+                         #0b0e12 url("./bg.jpg") center / cover no-repeat; }
+      .pane { background:rgba(19,24,31,.62); border:1px solid var(--line); border-radius:10px; padding:8px; overflow:auto; }
+      .pane.p1 { flex:0 0 170px; } .pane.p2 { flex:0 0 230px; } .pane.p3 { flex:1 1 auto; display:flex; flex-direction:column; gap:8px; }
+      .pane button { display:block; width:100%; text-align:left; margin-bottom:4px;
+                     background:transparent; border:1px solid transparent; font-size:12px; }
+      .pane button.active { border-color:#24505f; background:rgba(16,34,39,.55); color:var(--accent); }
+      .pane .hint { color:var(--dim); font-size:11px; }
+      textarea { flex:1 1 auto; width:100%; min-height:300px; resize:none; background:rgba(10,14,20,.7);
+                 border:1px solid var(--line); border-radius:8px; color:var(--text);
+                 padding:10px 12px; font:inherit; font-size:12.5px; line-height:1.7; }
+      #status { font-size:12px; } #status.ok { color:var(--ok); } #status.bad { color:var(--bad); }
+      #banner { display:none; margin:0 0 8px; padding:8px 12px; border:1px solid #5a3d22;
+                background:#251a10; color:var(--warn); border-radius:8px; font-size:12px; }
+      #banner.show { display:block; }
+      #head { font-size:12.5px; color:var(--accent); }
+      #info { color:var(--dim); font-size:11px; }
+    
+      /* ── 窄屏（手机）适配 ── */
+      @media (max-width: 720px) {
+        header { flex-wrap: wrap; gap: 6px; padding: 8px 10px; }
+        header h1 { font-size: 12px; flex: 0 0 auto; }
+        .tabs {
+          order: 9; width: 100%; max-width: 100%;
+          -webkit-overflow-scrolling: touch;
+        }
+        .tabs button { padding: 6px 12px; font-size: 12px; }
+        main { flex-direction: column; padding: 10px; gap: 10px; }
+        aside { flex: 0 0 auto; max-height: 26vh; width: 100%; }
+        .grid { grid-template-columns: 1fr; }
+        .row { flex-wrap: wrap; }
+        .row label { flex: 1 1 100%; min-width: 0; }
+        .row input[type="number"] { width: 110px; }
+        .row input[type="text"] { flex: 1 1 100%; }
+        .card, .item, .stat { padding: 10px 11px; }
+        textarea { min-height: 220px; }
+        .pane { flex: 1 1 auto !important; }
+        .pane.p1, .pane.p2 { flex: 0 0 auto !important; max-height: 20vh; }
+        pre.check { max-height: 42vh; }
+        #cards { gap: 8px; }
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>角色卡</h1>
+      <nav class="tabs" id="tabs"></nav>
+      <span class="spacer"></span>
+      <span id="status"></span>
+      <button class="primary" id="save">保存</button>
+    </header>
+
+    <main>
+      <div class="pane p1" id="personas"></div>
+      <div class="pane p2" id="sections"></div>
+      <div class="pane p3">
+        <div id="banner"></div>
+        <div style="display:flex; gap:8px; align-items:center;">
+          <span id="head">选一套卡 → 选一段</span>
+          <span class="spacer"></span>
+          <span id="info"></span>
+        </div>
+        <textarea id="editor" spellcheck="false" placeholder="这段的正文"></textarea>
+      </div>
+    </main>
+
+    <script>
+        function selfNavigate(page){ if(window.__NAV__ && window.__NAV__[page]){ location.href = window.__NAV__[page]; } }
+
+      (function () {
+        "use strict";
+        var PAGES = [
+          ["status","状态"],["logs","日志"],["ops","运维"],["groups","群聊"],
+          ["memory","记忆"],["slang","梗库"],["content","内容"],["maint","维护"],
+          ["period","时段"],["growth","成长"],["persona","角色卡"],["star","心穹中枢"]
+        ];
+        var CURRENT="persona", PLUGIN="astrbot_plugin_console", bridge=null;
+        var state = { list: [], name: null, prefix: "", blocks: [], index: 0, leadCounts: [] };
+        var bannerEl=document.getElementById("banner");
+
+        function banner(t){ bannerEl.textContent=t; bannerEl.classList.add("show"); }
+        function clearBanner(){ bannerEl.classList.remove("show"); }
+        function setStatus(t, tone){ var e=document.getElementById("status"); e.textContent=t||""; e.className=tone||""; }
+
+        function renderTabs(){
+          var nav=document.getElementById("tabs");
+          PAGES.forEach(function(pair){
+            var b=document.createElement("button"); b.type="button"; b.textContent=pair[1];
+            if(pair[0]===CURRENT) b.classList.add("active");
+            b.addEventListener("click", function(){
+              try { selfNavigate(pair[0]); }
+              catch(e){ banner("宿主不允许切换页面："+e); }
+            });
+            nav.appendChild(b);
+          });
+        }
+
+        function renderPersonas(){
+          var box=document.getElementById("personas"); box.replaceChildren();
+          state.list.forEach(function(p){
+            var b=document.createElement("button"); b.type="button";
+            b.textContent=p.id; var s=document.createElement("span"); s.className="hint";
+            s.textContent=" · "+p.chars+" 字"; b.appendChild(s);
+            if(p.id===state.name) b.classList.add("active");
+            b.addEventListener("click", function(){ loadPersona(p.id); });
+            box.appendChild(b);
+          });
+        }
+
+        function renderSections(){
+          var box=document.getElementById("sections"); box.replaceChildren();
+          state.blocks.forEach(function(block, idx){
+            var b=document.createElement("button"); b.type="button";
+            b.textContent=(block.head||"").replace(/[【】]/g,"").replace(/^#+\s*/,"").trim() || ("第 "+(idx+1)+" 段");
+            if(idx===state.index) b.classList.add("active");
+            b.addEventListener("click", function(){
+              state.index=idx; renderSections(); showSection();
+            });
+            box.appendChild(b);
+          });
+          if(!state.blocks.length){
+            var d=document.createElement("div"); d.className="hint";
+            d.textContent="这套人设没有可切分的段落（没有【标题】或 ## 标题），请整段看「内容」页";
+            box.appendChild(d);
+          }
+        }
+
+        function showSection(){
+          var block=state.blocks[state.index];
+          var editor=document.getElementById("editor");
+          if(!block){ editor.value=""; document.getElementById("head").textContent="选一套卡 → 选一段"; document.getElementById("info").textContent=""; return; }
+          var body=block.body || "";
+          state.leadCounts[state.index] = body.length - body.replace(/^\n+/, "").length;
+          editor.value = body.replace(/^\n+/, "");
+          document.getElementById("head").textContent = (block.head||"").trim() || ("第 "+(state.index+1)+" 段");
+          document.getElementById("info").textContent = state.name + " · 本段 " + body.length + " 字";
+        }
+
+        function flushSection(){
+          var block=state.blocks[state.index];
+          if(!block) return;
+          var lead="\n".repeat(state.leadCounts[state.index] || 0);
+          block.body = lead + document.getElementById("editor").value;
+        }
+
+        async function loadList(){
+          var d=await bridge.apiGet("persona");
+          state.list=(d&&d.personas)||[];
+          renderPersonas();
+          if(state.list.length && !state.name) loadPersona(state.list[0].id);
+        }
+
+        async function loadPersona(name){
+          flushSection();
+          setStatus("读取中…");
+          try{
+            var d=await bridge.apiGet("persona", { name: name });
+            state.name=d.id; state.prefix=d.prefix||""; state.blocks=d.blocks||[];
+            state.index=0; state.leadCounts=[];
+            renderPersonas(); renderSections(); showSection();
+            clearBanner(); setStatus("");
+          }catch(e){ banner("读取失败："+(e&&e.message?e.message:e)); setStatus(""); }
+        }
+
+        async function save(){
+          flushSection();
+          if(!state.name){ setStatus("先选一套卡","bad"); return; }
+          setStatus("保存中…");
+          try{
+            var r=await bridge.apiPost("persona/save", {
+              name: state.name, prefix: state.prefix, blocks: state.blocks
+            });
+            setStatus("已写库 · "+r.chars+" 字 · "+r.blocks+" 段（写库前已快照，重启后生效）","ok");
+            clearBanner(); await loadList();
+          }catch(e){
+            setStatus("保存失败","bad");
+            banner("保存失败："+(e&&e.message?e.message:e));
+          }
+        }
+
+        function boot(attempt){
+          bridge=window.AstrBotPluginView||window.AstrBotPluginPage;
+          if(!bridge){
+            if(attempt<30){ setTimeout(function(){boot(attempt+1);},100); return; }
+            banner("没有检测到 AstrBot 页面桥 —— 请从 WebUI → 扩展功能 → Atri控制台 → 角色卡 进入。");
+            return;
+          }
+          renderTabs();
+          document.getElementById("save").addEventListener("click", save);
+          document.getElementById("editor").addEventListener("input", function(){ setStatus("有改动，记得保存",""); });
+          var start=function(){ loadList().catch(function(e){ banner("读取失败："+(e&&e.message?e.message:e)); }); };
+          if(typeof bridge.ready==="function"){
+            Promise.race([bridge.ready(), new Promise(function(r){setTimeout(r,1500);})]).finally(start);
+          } else { start(); }
+        }
+
+        if(document.readyState==="loading"){
+          document.addEventListener("DOMContentLoaded", function(){boot(0);});
+        } else { boot(0); }
+      })();
+    </script>
+  </body>
+</html>

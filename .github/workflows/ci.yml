@@ -1,0 +1,48 @@
+name: 检查
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  syntax:
+    name: 语法与安全检查
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: 全部 .py 语法检查
+        run: python -m compileall -q plugins && echo "语法检查通过"
+
+      - name: 扫描疑似密钥
+        run: |
+          hits=$(grep -rIlE 'sk-[A-Za-z0-9]{20,}' --exclude-dir=.git . || true)
+          if [ -n "$hits" ]; then
+            echo "::error::发现疑似 API Key：$hits"
+            exit 1
+          fi
+          echo "没有发现密钥"
+
+      - name: 确认没有提交运行数据
+        run: |
+          bad=$(find . -path ./.git -prune -o -type f \( -name 'data.json' -o -name '*.log' -o -name '*.db' \) -print)
+          if [ -n "$bad" ]; then
+            echo "::error::仓库里混进了运行数据：$bad"
+            exit 1
+          fi
+          echo "没有运行数据"
+
+      - name: 确认没有硬编码绝对路径
+        run: |
+          hits=$(grep -rInE '[A-Za-z]:\\?(Users|Cangming)' --include='*.py' . || true)
+          if [ -n "$hits" ]; then
+            echo "::error::发现本机绝对路径：$hits"
+            exit 1
+          fi
+          echo "没有硬编码路径"
